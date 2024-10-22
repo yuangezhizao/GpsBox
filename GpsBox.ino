@@ -1,4 +1,12 @@
 #include <TinyGPSPlus.h>
+#include <U8g2lib.h>
+
+#ifdef U8X8_HAVE_HW_SPI
+#include <SPI.h>
+#endif
+#ifdef U8X8_HAVE_HW_I2C
+#include <Wire.h>
+#endif
 
 static const uint32_t USB_baud = 115200;
 static const uint16_t GPS_baud = 9600;
@@ -6,12 +14,25 @@ static const uint16_t print_interval = 2000;
 // static uint64_t current_millis = 0;
 // static uint64_t previous_millis = 0;
 char gps_serial;
+bool show_all_data = true;
 
 TinyGPSPlus gps;
+
+// U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE, /* clock=*/D5, /* data=*/D4);
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE, /* clock=*/SCL, /* data=*/SDA);
+// U8G2_SH1106_128X64_NONAME_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/ D8, /* dc=*/ D7, /* reset=*/ D6);
+// U8G2_SH1106_128X64_NONAME_F_4W_HW_SPI u8g2(U8G2_R0, /* cs=*/SCK, /* dc=*/D7, /* reset=*/D6);
 
 void setup() {
   Serial.begin(USB_baud);
   Serial0.begin(GPS_baud);
+
+  // Note: For RPI Pico
+  // SPI.setSCK(2);
+  // SPI.setTX(3);
+
+  u8g2.begin();
+  // u8g2.enableUTF8Print();
 
   Serial.println("[" + String(millis()) + "] Setup() end, start loop()...");
 }
@@ -84,6 +105,7 @@ void print_GPS_data(TinyGPSPlus& gps) {
   }
 
   print_to_serial(hdop_str, satellites_str, time_str, date_str, location_str, location_age_str, altitude_str, course_str, speed_str);
+  print_to_OLED(hdop_str, satellites_str, time_str, date_str, location_str, location_age_str, altitude_str, course_str, speed_str);
 }
 
 void print_to_serial(const char* hdop_str, const char* satellites_str, const char* time_str, const char* date_str, const char* location_str, const char* location_age_str, const char* altitude_str, const char* course_str, const char* speed_str) {
@@ -97,6 +119,65 @@ void print_to_serial(const char* hdop_str, const char* satellites_str, const cha
   Serial.println(altitude_str);
   Serial.println(course_str);
   Serial.println(speed_str);
+}
+
+void print_to_OLED(const char* hdop_str, const char* satellites_str, const char* time_str, const char* date_str, const char* location_str, const char* location_age_str, const char* altitude_str, const char* course_str, const char* speed_str) {
+  u8g2.clearBuffer();
+
+  u8g2.drawLine(0, 0, 128 - 1, 0);  // 黄线上
+  // u8g2.drawHLine(0, 0, 1);
+
+  u8g2.drawLine(0, 16 - 1, 128 - 1, 16 - 1);  // 黄线下
+
+  u8g2.drawLine(0, 16, 128 - 1, 16);  // 蓝线上
+
+  // u8g2.drawLine(0, 16 + 8 * 3 + 1, 128 - 1, 16 + 8 * 3 + 1);  // 蓝线中
+
+  u8g2.drawLine(0, 64 - 1, 128 - 1, 64 - 1);  // 蓝线下
+
+  u8g2.drawLine(0, 0, 0, 64 - 1);              // 左线
+  u8g2.drawLine(64 - 15, 0, 64 - 15, 16 - 1);  // 中上线
+  u8g2.drawLine(128 - 1, 0, 128 - 1, 64 - 1);  // 右线
+
+  // u8g2.setFont(u8g2_font_6x12_tf);
+  u8g2.setFont(u8g2_font_7x13_tf);
+
+  u8g2.setCursor(2, 12);
+  u8g2.print(satellites_str);
+
+  u8g2.setCursor(2 + 64 - 10, 12);
+  u8g2.print(hdop_str);
+
+  if (show_all_data) {
+    u8g2.setFont(u8g2_font_5x7_tf);  // 设置为较小的字体
+
+    u8g2.setCursor(2, 16 + 8);
+    u8g2.print(date_str);
+
+    u8g2.setCursor(2 + 64 + 5 * 2, 16 + 8);
+    // u8g2.setCursor(2 + 64 + 5 * 3, 16 + 8);
+    u8g2.print(time_str);
+
+    u8g2.setCursor(2, 16 + 8 * 2);
+    u8g2.print(location_str);
+
+    u8g2.setCursor(2, 16 + 8 * 3);
+    u8g2.print(altitude_str);
+
+    u8g2.setCursor(2 + 64 - 1, 16 + 8 * 3);
+    u8g2.print(course_str);
+
+    u8g2.setFont(u8g2_font_helvB14_tf);  // 设置为较大的字体
+
+    u8g2.setCursor(2, 16 + 8 * 4 + 10);
+    u8g2.print(speed_str);
+  } else {
+    u8g2.setFont(u8g2_font_fub35_tf);  // 设置为较大的字体
+    u8g2.setCursor(2, 16 + 8 * 4 + 10);
+    u8g2.print(speed_str);
+  }
+
+  u8g2.sendBuffer();
 }
 
 void loop() {
